@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Graph Spotter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- BODY START -->
+<div class="desk">
+  <article class="sheet">
+    <header class="mast">
+      <div>
+        <p class="kicker">Graph theory &middot; practice sheet</p>
+        <h1>Graph Spotter</h1>
+      </div>
+      <form class="gen" id="genForm">
+        <label for="nInput"><i>n</i> =</label>
+        <div class="stepper">
+          <button type="button" id="nDec" aria-label="Fewer vertices">&minus;</button>
+          <input id="nInput" type="number" min="3" max="15" value="7" inputmode="numeric">
+          <button type="button" id="nInc" aria-label="More vertices">+</button>
+        </div>
+        <button type="submit" id="newBtn" class="btn" disabled>New graph</button>
+      </form>
+    </header>
+
+    <div class="cols">
+      <figure class="fig">
+        <div class="frame">
+          <svg id="graph" viewBox="0 0 600 600" role="img" aria-label="Randomly generated graph G"></svg>
+        </div>
+        <figcaption>
+          <span><b>Figure 1.</b> <span id="stats"></span></span>
+          <span class="redraw">Redraw:
+            <button type="button" id="circleBtn" class="link">circle</button> &middot;
+            <button type="button" id="springBtn" class="link">spring</button>
+          </span>
+        </figcaption>
+        <p class="note">Drag vertices to rearrange the drawing. Crossings in one drawing do not show that <i>G</i> is non-planar.</p>
+        <p class="note built" id="built" hidden></p>
+      </figure>
+
+      <section class="qs" aria-labelledby="probTitle">
+        <div class="q-head">
+          <h2 id="probTitle">Problem <span id="probNo">1</span></h2>
+          <div id="result" class="mark" hidden></div>
+        </div>
+        <p class="stem">Let <i>G</i> be the graph in Figure&nbsp;1. Tick every statement that is true; leave the others blank.</p>
+        <ol id="propList" class="props"></ol>
+        <p id="resultMsg" class="result-msg" hidden></p>
+        <div class="actions">
+          <button type="button" id="checkBtn" class="btn solid">Submit answers</button>
+          <span id="gate" class="gate">Submit to unlock the next graph.</span>
+        </div>
+        <dl class="tally">
+          <div><dt>Graphs attempted</dt><dd id="tRounds">0</dd></div>
+          <div><dt>Accuracy</dt><dd id="tAcc">&ndash;</dd></div>
+          <div><dt>Full marks</dt><dd id="tPerfect">0</dd></div>
+        </dl>
+        <details class="defs">
+          <summary>Definitions</summary>
+          <dl id="defList"></dl>
+        </details>
+      </section>
+    </div>
+  </article>
+</div>
+<!-- BODY END -->
+<script src="script.js"></script>
+</body>
+</html>
