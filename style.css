@@ -138,6 +138,7 @@ i, em { font-style: italic; }
   user-select: none;
 }
 .edge { stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
+.edge.ham { stroke-width: 4.5; }
 .node { cursor: grab; }
 .dragging .node { cursor: grabbing; }
 .node .hit { fill: transparent; }
