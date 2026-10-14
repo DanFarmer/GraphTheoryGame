@@ -17,6 +17,7 @@
     tree: 'is a <em>tree</em>',
     eulerian: 'is <em>Eulerian</em>',
     semiEulerian: 'is <em>semi-Eulerian</em>',
+    hamiltonian: 'is <em>Hamiltonian</em>',
     planar: 'is <em>planar</em>',
   };
   const TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 L9 19 L21 4.5"/></svg>';
@@ -31,6 +32,7 @@
     { id: 'tree', name: 'Tree', def: 'Connected with no cycles. A tree on n vertices has exactly n − 1 edges.' },
     { id: 'eulerian', name: 'Eulerian', def: 'Has a closed trail using every edge exactly once. Here: connected, and every vertex has even degree.' },
     { id: 'semiEulerian', name: 'Semi-Eulerian', def: 'Has an open trail using every edge exactly once, but no closed one. Here: connected, with exactly two odd-degree vertices.' },
+    { id: 'hamiltonian', name: 'Hamiltonian', def: 'Has a cycle that visits every vertex exactly once. There is no simple degree test as there is for Eulerian graphs; useful obstacles are a vertex of degree &lt; 2, a cut vertex, or a bipartite graph with unequal sides.' },
     { id: 'planar', name: 'Planar', def: 'Can be drawn in the plane with no edges crossing. Crossings in one particular drawing do not prove a graph is non-planar.' },
   ];
 
@@ -152,6 +154,19 @@
         }
         const E = [...has].map((k) => k.split('-').map(Number));
         return { E, note: 'a random graph adjusted so every degree is even' };
+      },
+    },
+    {
+      w: 1.2, ok: () => true,
+      build(n) {
+        // A cycle through every vertex plus a few chords, sometimes with one cycle edge removed.
+        const E = range(0, n - 1).map((i) => [i, (i + 1) % n]);
+        for (let c = rand(0, Math.ceil(n / 2)); c > 0; c--) E.push([rand(0, n - 1), rand(0, n - 1)]);
+        if (Math.random() < 0.4) {
+          E.splice(rand(0, n - 1), 1);
+          return { E, note: `C<sub>${n}</sub> with random chords added and one cycle edge removed` };
+        }
+        return { E, note: `C<sub>${n}</sub> with random chords added` };
       },
     },
     {
@@ -331,6 +346,45 @@
     return true;
   }
 
+  /* ---------- Hamiltonian cycles ----------
+   * Held–Karp style DP over subsets: reach[mask][v] says whether some path
+   * starting at vertex 0 visits exactly the vertices in mask and ends at v.
+   * With n ≤ 15 this is at most 2^15 · 15 states. Returns a cycle or null.
+   */
+
+  function hamiltonianCycle(g) {
+    const { n, adj } = g;
+    if (n < 3) return null;
+    const full = (1 << n) - 1;
+    const reach = new Uint8Array((full + 1) * n);
+    const par = new Int8Array((full + 1) * n);
+    reach[1 * n + 0] = 1;
+    for (let mask = 1; mask <= full; mask += 2) {
+      for (let v = 0; v < n; v++) {
+        if (!reach[mask * n + v]) continue;
+        for (const w of adj[v]) {
+          if (mask & (1 << w)) continue;
+          const idx = (mask | (1 << w)) * n + w;
+          if (!reach[idx]) { reach[idx] = 1; par[idx] = v; }
+        }
+      }
+    }
+    for (const v of adj[0]) {
+      if (!reach[full * n + v]) continue;
+      const cycle = [];
+      let mask = full;
+      for (let cur = v; cur !== 0;) {
+        cycle.push(cur);
+        const p = par[mask * n + cur];
+        mask ^= 1 << cur;
+        cur = p;
+      }
+      cycle.push(0);
+      return cycle.reverse();
+    }
+    return null;
+  }
+
   /* ---------- analysis ---------- */
 
   function analyse(g) {
@@ -442,6 +496,25 @@
         : { value: false, why: `It has ${oddText}; an open Euler trail needs exactly two.` };
     }
 
+    // Hamiltonian: give the simplest obstacle we can find, else fall back on the search result.
+    const hamCycle = connected && minD >= 2 ? hamiltonianCycle(g) : null;
+    if (hamCycle) {
+      res.hamiltonian = { value: true, why: `It has a Hamiltonian cycle: ${hamCycle.concat(hamCycle[0]).map(V).join('–')}.` };
+    } else if (!connected) {
+      res.hamiltonian = { value: false, why: 'It is not connected, so no cycle can reach every vertex.' };
+    } else if (minD < 2) {
+      res.hamiltonian = { value: false, why: `${V(deg.indexOf(minD))} has degree ${minD}, but every vertex on a cycle needs degree at least 2.` };
+    } else {
+      const seenIn = Array(n).fill(0);
+      for (const b of blocks(n, adj)) for (const v of new Set(b.flat())) seenIn[v]++;
+      const cut = seenIn.findIndex((c) => c > 1);
+      let hWhy;
+      if (cut !== -1) hWhy = `${V(cut)} is a cut vertex: removing it disconnects the graph, so a cycle would have to pass through it twice.`;
+      else if (bipartite && sideA.length !== sideB.length) hWhy = `It is bipartite with sides of ${sideA.length} and ${sideB.length} vertices; a Hamiltonian cycle alternates sides, so they would need to be equal.`;
+      else hWhy = 'An exhaustive search finds no cycle through all the vertices.';
+      res.hamiltonian = { value: false, why: hWhy };
+    }
+
     // Planar
     const planar = isPlanar(g);
     let pWhy;
@@ -451,7 +524,7 @@
     else pWhy = 'It contains a subdivision of K<sub>5</sub> or K<sub>3,3</sub>, so by Kuratowski’s theorem it is not planar.';
     res.planar = { value: planar, why: pWhy };
 
-    return { res, deg, color: bipartite ? color : null };
+    return { res, deg, color: bipartite ? color : null, hamCycle };
   }
 
   /* ---------- layout ---------- */
@@ -548,9 +621,17 @@
     const P = state.pos;
     const show = state.checked;
     const info = state.info;
+    const onCycle = new Set();
+    if (show && info.hamCycle) {
+      const c = info.hamCycle;
+      for (let k = 0; k < c.length; k++) {
+        const u = c[k], v = c[(k + 1) % c.length];
+        onCycle.add(u < v ? `${u}-${v}` : `${v}-${u}`);
+      }
+    }
     let html = '<g class="edges">';
     for (const [u, v] of g.edges) {
-      html += `<line class="edge" x1="${P[u].x.toFixed(1)}" y1="${P[u].y.toFixed(1)}" x2="${P[v].x.toFixed(1)}" y2="${P[v].y.toFixed(1)}"/>`;
+      html += `<line class="edge${onCycle.has(`${u}-${v}`) ? ' ham' : ''}" x1="${P[u].x.toFixed(1)}" y1="${P[u].y.toFixed(1)}" x2="${P[v].x.toFixed(1)}" y2="${P[v].y.toFixed(1)}"/>`;
     }
     html += '</g><g class="nodes">';
     // Labels sit outside each vertex, pointing away from the centre of the drawing.
@@ -656,7 +737,7 @@
     const msg = $('resultMsg');
     msg.textContent = perfect ? 'Full marks.' : `${PROPS.length - right} to review: see the notes in red.`;
     msg.hidden = false;
-    $('built').innerHTML = `<i>G</i> was built as ${state.graph.note}. Red numbers are vertex degrees${state.info.color ? '; filled and hollow vertices show the two sides of the bipartition' : ''}.`;
+    $('built').innerHTML = `<i>G</i> was built as ${state.graph.note}. Red numbers are vertex degrees${state.info.color ? '; filled and hollow vertices show the two sides of the bipartition' : ''}${state.info.hamCycle ? '; thick edges trace a Hamiltonian cycle' : ''}.`;
     $('built').hidden = false;
     $('tRounds').textContent = t.rounds;
     $('tAcc').textContent = `${Math.round((100 * t.right) / t.total)}%`;
